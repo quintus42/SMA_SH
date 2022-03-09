@@ -47,6 +47,7 @@ public class Agent {
 
     public Agent(Grid env, int tMemory) {
         this.env = env;
+        this.carriedObjet = TypeObjet.EMPTY;
         this.memory = new ShortTermMemory<TypeObjet>(tMemory);
     }
     
