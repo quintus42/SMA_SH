@@ -30,11 +30,14 @@ public class Grid {
     private double kPlus;
     private double kMoins;
     private double e;
+
+    private int dS;
+    private double iS;
     
     private Case[][] grid;
 
     public Grid(int n, int m, int nbA, int nbB, int nbAgents, int memoSize,
-            int I, double kPlus, double kMoins, double e) {
+            int I, double kPlus, double kMoins, double e, int dS) {
         this.N = n;
         this.M = m;
         this.nbObjA = nbA;
@@ -45,6 +48,7 @@ public class Grid {
         this.kPlus = kPlus;
         this.kMoins = kMoins;
         this.e = e;
+        this.dS = dS;
         
         grid = new Case[N][M];
         for (int i = 0; i < N; i++) {
@@ -103,20 +107,19 @@ public class Grid {
         printGrid();
         
         sortGrid();
-        
     }
     
     public void sortGrid(){
         int iter = 0;
         while(true){
             iter++;
-            
+
             //On choisit aléatoirement un robot
             Agent r = nextRobot(true);
-            
+
             //Perception du robot
             r.perception();
-            
+
             //Action du robot
             r.action();
 
@@ -130,7 +133,36 @@ public class Grid {
                 }
 
             }
-            
+
+        }
+    }
+
+    private void spreadSignal(Agent aThis){
+        Case currentPosition = aThis.getPosition();
+        for (int x = currentPosition.getX() - dS; x < currentPosition.getX() + dS; x++) {
+            for (int y = currentPosition.getY() - dS; y < currentPosition.getY() + dS; y++) {
+                if(0 <= x && x < N
+                        && 0 <= y && y < M){
+                    int dist = Math.max(Math.abs(x), Math.abs(y));
+                    double rS = 1; //reduction du signal
+                    for (int i = 1; i <= dist; i++) {
+                        rS += rS - iS/i;
+                    }
+                    grid[x][y].setSignal(iS+rS);
+                }
+            }
+        }
+    }
+
+    private void clearSignal(Agent aThis){
+        Case currentPosition = aThis.getPosition();
+        for (int x = currentPosition.getX() - dS; x < currentPosition.getX() + dS; x++) {
+            for (int y = currentPosition.getY() - dS; y < currentPosition.getY() + dS; y++) {
+                if(0 <= x && x < N
+                        && 0 <= y && y < M){
+                    grid[x][y].setSignal(0);
+                }
+            }
         }
     }
 
@@ -187,26 +219,91 @@ public class Grid {
         for (int i = 0; i < N; i++) {
             for (int j = 0; j < M; j++) {
                 if(grid[i][j].getRobot() == aThis){
-                    Case currentCase = grid[i][j];                    
-                    
+                    Case currentCase = grid[i][j];
+
                     //On ajoute la case courante à la mémoire du robot
                     aThis.addToMemory(currentCase.getType());
-                    
+
                     //On calcule les variables en fonction de son environnement
                     aThis.setFa(calculFrequency(aThis, TypeObjet.A));
                     aThis.setFb(calculFrequency(aThis, TypeObjet.B));
 
                     aThis.setPosition(currentCase);
-                    
-                    //On récupère les positions dispo et on en tire une au hasard
-                    List<Direction> possibleDirs = getFreeDirection(aThis);
-                    if (possibleDirs.size() > 0) {
-                        Random rand = new Random();
-                        aThis.setDirection(possibleDirs.get(rand.nextInt(possibleDirs.size())));
+
+                    if(aThis.getPosition().getSignal() > 0){
+                        setDirectionSignal(aThis);
                     }else{
-                        aThis.setDirection(null);
+                        setRandomDirection(aThis);
+                    }
+
+                }
+            }
+        }
+    }
+
+    private void setRandomDirection(Agent aThis){
+        List<Direction> possibleDirs = getFreeDirection(aThis);
+        if (possibleDirs.size() > 0) {
+            Random rand = new Random();
+            aThis.setDirection(possibleDirs.get(rand.nextInt(possibleDirs.size())));
+        }else{
+            aThis.setDirection(null);
+        }
+    }
+
+    private void setDirectionSignal(Agent aThis){
+        Case currentPosition = aThis.getPosition();
+        Case maxSignal = new Case();
+        for (int x = currentPosition.getX() - 1; x < currentPosition.getX() + 1; x++) {
+            for (int y = currentPosition.getY() - 1; y < currentPosition.getY() + 1; y++) {
+                if(0 <= x && x < N
+                        && 0 <= y && y < M){
+                    Case cS = grid[x][y];
+                    if (cS.getSignal() > maxSignal.getSignal()) {
+                        maxSignal = cS;
                     }
                 }
+            }
+        }
+
+        Random rand = new Random();
+        if(rand.nextDouble() <= maxSignal.getSignal()){
+            //On suit la direction du signal
+            aThis.setDirection(getDirectionOfCase(aThis.getPosition(), maxSignal));
+        }else{
+            //On tire une direction au hasard
+            setRandomDirection(aThis);
+        }
+    }
+
+    private Direction getDirectionOfCase(Case current, Case target){
+        int curX = current.getX();
+        int curY = current.getY();
+        int tarX = target.getX();
+        int tarY = target.getY();
+        if(tarX > curX){
+            if(tarY > curY){
+                return Direction.SUD_EST;
+            }else if(tarY < curY){
+                return Direction.NORD_EST;
+            }else{
+                return Direction.EST;
+            }
+        }else if(tarX < curX){
+            if(tarY > curY){
+                return Direction.SUD_OUEST;
+            }else if(tarY < curY){
+                return Direction.NORD_OUEST;
+            }else{
+                return Direction.OUEST;
+            }
+        }else{
+            if(tarY > curY){
+                return Direction.SUD;
+            }else if(tarY < curY){
+                return Direction.NORD;
+            }else{
+                return null; //C'est la case current
             }
         }
     }

@@ -14,19 +14,23 @@ public class Case {
     private Agent robot;
     private int x;
     private int y;
+    private double signal;
 
     public Case() {
         this.type = TypeObjet.EMPTY;
+        this.signal = 0;
     }
     
     public Case(TypeObjet type) {
         this.type = type;
+        this.signal = 0;
     }   
     
     public Case(int x, int y) {
-        this.type = TypeObjet.EMPTY;
         this.x = x;
         this.y = y;
+        this.type = TypeObjet.EMPTY;
+        this.signal = 0;
     }     
 
     public TypeObjet getType() {
@@ -60,6 +64,18 @@ public class Case {
     public void setY(int y) {
         this.y = y;
     }
-    
-    
+
+    public double getSignal() {
+        return signal;
+    }
+
+    public void setSignal(double signal) {
+        this.signal = signal;
+    }
+
+    public void deprecateSignal(double r){
+        signal = (1-r)*signal;
+    }
+
+
 }
