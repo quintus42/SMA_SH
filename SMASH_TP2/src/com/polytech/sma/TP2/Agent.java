@@ -22,6 +22,8 @@ public class Agent {
 
     private boolean forcedToTake;
 
+    private int cptWaitingOnC;
+
     private ShortTermMemory<TypeObjet> memory;
 
     public Case getPosition() {
@@ -62,6 +64,22 @@ public class Agent {
 
     public void setForcedToTake(boolean forcedToTake) {
         this.forcedToTake = forcedToTake;
+    }
+
+    public int getCptWaitingOnC() {
+        return cptWaitingOnC;
+    }
+
+    public void increaseCptWaitingOnC() {
+        cptWaitingOnC++;
+    }
+
+    public void resetCptWaitingOnC() {
+        cptWaitingOnC = 0;
+    }
+
+    public void setCptWaitingOnC(int cptWaitingOnC) {
+        this.cptWaitingOnC = cptWaitingOnC;
     }
 
     public Agent(Grid env, int tMemory) {

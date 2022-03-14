@@ -18,6 +18,8 @@ import java.util.logging.Logger;
  * @author Epulapp
  */
 public class Grid {
+
+    // <editor-fold defaultstate="collapsed" desc="Variables">
     private int N;
     private int M;
     private int nbObjA;
@@ -34,11 +36,14 @@ public class Grid {
 
     private int dS;
     private double iS = 1;
+
+    boolean printGridIter;
+    // </editor-fold>
     
     private Case[][] grid;
 
     public Grid(int n, int m, int nbA, int nbB, int nbC, int nbAgents, int memoSize,
-            int I, double kPlus, double kMoins, double e, int dS) {
+            int I, double kPlus, double kMoins, double e, int dS, boolean printGridIter) {
         this.N = n;
         this.M = m;
         this.nbObjA = nbA;
@@ -51,6 +56,7 @@ public class Grid {
         this.kMoins = kMoins;
         this.e = e;
         this.dS = dS;
+        this.printGridIter = printGridIter;
         
         grid = new Case[N][M];
         for (int i = 0; i < N; i++) {
@@ -117,17 +123,21 @@ public class Grid {
                 nbCPlaced++;
             }
         }
-        
+
+        System.out.println("Début de l'exécution :");
         printGrid();
         
         sortGrid();
+
+        updateCaseAgentFromGrid();//temporaire pour cause de bug ?
+        System.out.println("Fin de l'exécution :");
+        printGrid();
     }
     
     public void sortGrid(){
         int iter = 0;
-        while(true){
+        while(true && iter<10000000){
             iter++;
-            updateCaseAgentFromGrid();//temporaire pour cause de bug ?
 
             //On choisit aléatoirement un robot
             Agent r = nextRobot(false);
@@ -138,61 +148,26 @@ public class Grid {
             //Action du robot
             r.action();
 
-            if(iter%10000==0){
-                System.out.println("Itération : " + iter);
-                printGrid();
-                try {
-                    Thread.sleep(400);
-                } catch (InterruptedException ex) {
-                    Logger.getLogger(Grid.class.getName()).log(Level.SEVERE, null, ex);
-                }
-
-            }
-
-        }
-    }
-
-    private void updateCaseAgentFromGrid(){
-        for (Agent agent:agents) {
-            if(!(agent.getPosition() == null)){
-                int x = agent.getPosition().getX();
-                int y = agent.getPosition().getY();
-                if(!(grid[x][y].getRobot() == agent || grid[x][y].getRobot2() == agent)){
-                    grid[x][y].setRobot(agent);
-                }
-            }
-        }
-    }
-
-    private void spreadSignal(Agent aThis){
-        Case currentPosition = aThis.getPosition();
-        for (int x = currentPosition.getX() - dS; x <= currentPosition.getX() + dS; x++) {
-            for (int y = currentPosition.getY() - dS; y <= currentPosition.getY() + dS; y++) {
-                if(0 <= x && x < N
-                        && 0 <= y && y < M){
-                    int dist = Math.max(Math.abs(x-currentPosition.getX()), Math.abs(y-currentPosition.getY()));
-                    double rS = 1; //reduction du signal
-                    for (int i = 1; i <= dist; i++) {
-                        rS = rS - iS/i;
+            if(iter%20000==0){
+                if(printGridIter){
+                    System.out.println("Itération : " + iter);
+                    printGrid();
+                    try {
+                        Thread.sleep(300);
+                    } catch (InterruptedException ex) {
+                        Logger.getLogger(Grid.class.getName()).log(Level.SEVERE, null, ex);
                     }
-                    grid[x][y].setSignal(iS+rS);
+                }else{
+                    System.out.println("Itération : " + iter);
                 }
+
+            }else{
             }
+
         }
     }
 
-    private void clearSignal(Agent aThis){
-        Case currentPosition = aThis.getPosition();
-        for (int x = currentPosition.getX() - dS; x <= currentPosition.getX() + dS; x++) {
-            for (int y = currentPosition.getY() - dS; y <= currentPosition.getY() + dS; y++) {
-                if(0 <= x && x < N
-                        && 0 <= y && y < M){
-                    grid[x][y].setSignal(0);
-                }
-            }
-        }
-    }
-
+    // <editor-fold defaultstate="collapsed" desc="Gestion des Agents">
     private int currentRobotIndex;
     private Agent nextRobot(boolean alea) {
         if(alea){
@@ -236,7 +211,7 @@ public class Grid {
                 }
             }
             if(nextX < 0 || nextX >= N || nextY < 0 || nextY >= M){
-                System.out.println("Erreeeeeeeeeeeeeur");
+                System.out.println("Error");
                 return;
             }
             Case newPos = grid[nextX][nextY];
@@ -247,16 +222,34 @@ public class Grid {
                     currentPosition.removeRobot(otherRobot);
                     otherRobot.setPosition(newPos);
                 }else{
-                    //Si l'agent porte un objet C mais qu'il n'y a pas d'autre robot (il est seul)
-                    //On ne bouge pas
-                    //On deprecate le signal ?
-                    //On relance le signal ?
+                    aThis.increaseCptWaitingOnC();
+                    //On calcul la proba d'abandonner l'objet avec le Logn(x)
+                    //car log(1) = 0 et log(10) = 1
+                    //donc plus le nombre de tour tend vers 10 plus la proba d'abandonner est proche de 1
+                    double proba = Math.log(aThis.getCptWaitingOnC());
                     Random rand = new Random();
-                    if (rand.nextDouble() < 0.3){
+                    if (rand.nextDouble() < proba){
                         clearSignal(aThis);
                         aThis.setObjet(TypeObjet.EMPTY);
                         setRandomDirection(aThis);
                         moveRobot(aThis, aThis.getDirection());
+                        aThis.resetCptWaitingOnC();
+                    }else{
+                        //On veut que plus l'agent attend depuis longtemps moins il ait de chance de relancer le
+                        // signal en remettant à 0 l'attente
+                        //1-log(x) permet de varier entre 1 et 0 en se rapprochant de 10
+                        //Mais 1-log(1) = 1 ce qui fait que l'agent bouclerait et relancerait en permanence l'appel
+                        //donc on utilise 0.5-log(x) pour que lors du premier tour la proba de relancer ne soit pas de 1
+                        // et on utilise la fonction max pour que dès que 0.5-log(x) < 0 (à savoir entre x=3 et x=4)
+                        // la proba de relancer l'appel soit de 0
+                        proba = Math.max(0.5*Math.log(aThis.getCptWaitingOnC()), 0);
+                        if (rand.nextDouble() < proba){
+                            spreadSignal(aThis);
+                            aThis.resetCptWaitingOnC();
+                        }else{
+                            //Et sinon on decrease le signal sur les cases
+                            decreaseSignal(aThis);
+                        }
                     }
                     return;
                 }
@@ -284,7 +277,7 @@ public class Grid {
 
                     aThis.setPosition(currentCase);
 
-                    if(aThis.getPosition().getSignal() > 0 && aThis.getObjet() != TypeObjet.C){
+                    if(aThis.getPosition().getSignal() > 0 && aThis.getObjet() == TypeObjet.EMPTY){
                         //System.out.println("Direction signal");
                         setDirectionSignal(aThis);
                     }else{
@@ -296,7 +289,9 @@ public class Grid {
             }
         }
     }
+    // </editor-fold>
 
+    // <editor-fold defaultstate="collapsed" desc="Gestion des directions">
     private void setRandomDirection(Agent aThis){
         List<Direction> possibleDirs = getFreeDirection(aThis);
         if (possibleDirs.size() > 0) {
@@ -334,121 +329,6 @@ public class Grid {
         }else{
             //On tire une direction au hasard
             setRandomDirection(aThis);
-        }
-    }
-
-    private Direction getDirectionOfCase(Case current, Case target){
-        int curX = current.getX();
-        int curY = current.getY();
-        int tarX = target.getX();
-        int tarY = target.getY();
-        if(tarX > curX){
-            if(tarY > curY){
-                return Direction.SUD_EST;
-            }else if(tarY < curY){
-                return Direction.NORD_EST;
-            }else{
-                return Direction.EST;
-            }
-        }else if(tarX < curX){
-            if(tarY > curY){
-                return Direction.SUD_OUEST;
-            }else if(tarY < curY){
-                return Direction.NORD_OUEST;
-            }else{
-                return Direction.OUEST;
-            }
-        }else{
-            if(tarY > curY){
-                return Direction.SUD;
-            }else if(tarY < curY){
-                return Direction.NORD;
-            }else{
-                //C'est la case courante
-                return null;
-            }
-        }
-    }
-
-    private double calculFrequency(Agent aThis, TypeObjet type){
-        int nbType = Collections.frequency(aThis.getMemory(), type);
-
-        double nbOtherType = 0;
-        TypeObjet.class.getEnumConstants();
-        for (TypeObjet t : TypeObjet.class.getEnumConstants()) {
-            if (t != type && t != TypeObjet.EMPTY){
-                nbOtherType += Collections.frequency(aThis.getMemory(), t);
-            }
-        }
-        double error = (nbOtherType*e);
-        double f = ((nbType+error)/(double)agentMemorySize);
-
-        return f;
-    }
-
-
-    private double probaTake(double f){
-        return Math.pow((kPlus / (kPlus + f)), 2);
-    }
-    void tryTakeObject(Agent aThis, boolean forcedToTake) {
-        Random rand = new Random();
-        double proba = 0;
-        if(aThis.getPosition().getType() == TypeObjet.A){
-            proba = probaTake(aThis.getFa());
-        }else if(aThis.getPosition().getType() == TypeObjet.B){
-            proba = probaTake(aThis.getFb());
-        }else if(aThis.getPosition().getType() == TypeObjet.C){
-            proba = probaTake(aThis.getFc());
-            if(rand.nextDouble()<= proba || forcedToTake){
-                //on regarde si il y'a deja un autre robot
-                Agent otherRobot = aThis.getPosition().getOtherRobot(aThis);
-                if(otherRobot != null){
-                    aThis.setObjet(aThis.getPosition().getType());
-                    aThis.getPosition().setType(TypeObjet.EMPTY);
-                    //On coupe le signal du robot en attente
-                    clearSignal(otherRobot);
-                }else{
-                    aThis.setObjet(aThis.getPosition().getType());
-                    //On propage un signal de demande d'aide
-                    spreadSignal(aThis);
-                }
-            }
-            return;
-        }
-        if(rand.nextDouble()<= proba || forcedToTake){
-            //On prend l'objet
-            aThis.setObjet(aThis.getPosition().getType());
-            aThis.getPosition().setType(TypeObjet.EMPTY);
-        }
-    }
-
-    private double probaDrop(double f){
-        return Math.pow((f / (kMoins + f)), 2);
-    }
-    void tryDropObject(Agent aThis) {
-        Random rand = new Random();
-        double proba = 0;
-        if(aThis.getObjet() == TypeObjet.A){
-            proba = probaDrop(aThis.getFa());
-        }else if(aThis.getObjet() == TypeObjet.B){
-            proba = probaDrop(aThis.getFb());
-        }else if(aThis.getObjet() == TypeObjet.C){
-            proba = probaDrop(aThis.getFc());
-            if(rand.nextDouble()<= proba){
-                Agent otherRobot = aThis.getPosition().getOtherRobot(aThis);
-                if(otherRobot != null){
-                    //On pose l'objet pour les deux robots
-                    aThis.getPosition().setType(aThis.getObjet());
-                    aThis.setObjet(TypeObjet.EMPTY);
-                    otherRobot.setObjet(TypeObjet.EMPTY);
-                }
-            }
-            return;
-        }
-        if(rand.nextDouble()<= proba){
-            //On pose l'objet
-            aThis.getPosition().setType(aThis.getObjet());
-            aThis.setObjet(TypeObjet.EMPTY);
         }
     }
 
@@ -522,17 +402,190 @@ public class Grid {
         return false;
     }
 
+    private Direction getDirectionOfCase(Case current, Case target){
+        int curX = current.getX();
+        int curY = current.getY();
+        int tarX = target.getX();
+        int tarY = target.getY();
+        if(tarX > curX){
+            if(tarY > curY){
+                return Direction.SUD_EST;
+            }else if(tarY < curY){
+                return Direction.NORD_EST;
+            }else{
+                return Direction.EST;
+            }
+        }else if(tarX < curX){
+            if(tarY > curY){
+                return Direction.SUD_OUEST;
+            }else if(tarY < curY){
+                return Direction.NORD_OUEST;
+            }else{
+                return Direction.OUEST;
+            }
+        }else{
+            if(tarY > curY){
+                return Direction.SUD;
+            }else if(tarY < curY){
+                return Direction.NORD;
+            }else{
+                //C'est la case courante
+                return null;
+            }
+        }
+    }
 
+    private double calculFrequency(Agent aThis, TypeObjet type){
+        int nbType = Collections.frequency(aThis.getMemory(), type);
+
+        double nbOtherType = 0;
+        TypeObjet.class.getEnumConstants();
+        for (TypeObjet t : TypeObjet.class.getEnumConstants()) {
+            if (t != type && t != TypeObjet.EMPTY){
+                nbOtherType += Collections.frequency(aThis.getMemory(), t);
+            }
+        }
+        double error = (nbOtherType*e);
+        double f = ((nbType+error)/(double)agentMemorySize);
+
+        return f;
+    }
+    // </editor-fold>
+
+    // <editor-fold defaultstate="collapsed" desc="Gestion des actions (prendre/déposer)">
+    private double probaTake(double f){
+        return Math.pow((kPlus / (kPlus + f)), 2);
+    }
+    void tryTakeObject(Agent aThis, boolean forcedToTake) {
+        Random rand = new Random();
+        double proba = 0;
+        if(aThis.getPosition().getType() == TypeObjet.A){
+            proba = probaTake(aThis.getFa());
+        }else if(aThis.getPosition().getType() == TypeObjet.B){
+            proba = probaTake(aThis.getFb());
+        }else if(aThis.getPosition().getType() == TypeObjet.C){
+            proba = probaTake(aThis.getFc());
+            if(rand.nextDouble()<= proba || forcedToTake){
+                //on regarde si il y'a deja un autre robot
+                Agent otherRobot = aThis.getPosition().getOtherRobot(aThis);
+                if(otherRobot != null){
+                    aThis.setObjet(aThis.getPosition().getType());
+                    aThis.getPosition().setType(TypeObjet.EMPTY);
+                    //On coupe le signal du robot en attente
+                    clearSignal(otherRobot);
+                }else{
+                    aThis.setObjet(aThis.getPosition().getType());
+                    //On propage un signal de demande d'aide
+                    spreadSignal(aThis);
+                }
+            }
+            return;
+        }
+        if(rand.nextDouble()<= proba || forcedToTake){
+            //On prend l'objet
+            aThis.setObjet(aThis.getPosition().getType());
+            aThis.getPosition().setType(TypeObjet.EMPTY);
+        }
+    }
+
+    private double probaDrop(double f){
+        return Math.pow((f / (kMoins + f)), 2);
+    }
+    void tryDropObject(Agent aThis) {
+        Random rand = new Random();
+        double proba = 0;
+        if(aThis.getObjet() == TypeObjet.A){
+            proba = probaDrop(aThis.getFa());
+        }else if(aThis.getObjet() == TypeObjet.B){
+            proba = probaDrop(aThis.getFb());
+        }else if(aThis.getObjet() == TypeObjet.C){
+            proba = probaDrop(aThis.getFc());
+            if(rand.nextDouble()<= proba){
+                Agent otherRobot = aThis.getPosition().getOtherRobot(aThis);
+                if(otherRobot != null){
+                    //On pose l'objet pour les deux robots
+                    aThis.getPosition().setType(aThis.getObjet());
+                    aThis.setObjet(TypeObjet.EMPTY);
+                    otherRobot.setObjet(TypeObjet.EMPTY);
+                }
+            }
+            return;
+        }
+        if(rand.nextDouble()<= proba){
+            //On pose l'objet
+            aThis.getPosition().setType(aThis.getObjet());
+            aThis.setObjet(TypeObjet.EMPTY);
+        }
+    }
+    // </editor-fold>
+
+    // <editor-fold defaultstate="collapsed" desc="Gestion du signal">
+    private void updateCaseAgentFromGrid(){
+        for (Agent agent:agents) {
+            if(!(agent.getPosition() == null)){
+                int x = agent.getPosition().getX();
+                int y = agent.getPosition().getY();
+                if(!(grid[x][y].getRobot() == agent || grid[x][y].getRobot2() == agent)){
+                    grid[x][y].setRobot(agent);
+                }
+            }
+        }
+    }
+
+    private void spreadSignal(Agent aThis){
+        Case currentPosition = aThis.getPosition();
+        for (int x = currentPosition.getX() - dS; x <= currentPosition.getX() + dS; x++) {
+            for (int y = currentPosition.getY() - dS; y <= currentPosition.getY() + dS; y++) {
+                if(0 <= x && x < N
+                        && 0 <= y && y < M){
+                    int dist = Math.max(Math.abs(x-currentPosition.getX()), Math.abs(y-currentPosition.getY()));
+                    double rS = 1; //reduction du signal
+                    for (int i = 1; i <= dist; i++) {
+                        rS = rS - iS/i;
+                    }
+                    grid[x][y].setSignal(iS+rS);
+                }
+            }
+        }
+    }
+
+    private void decreaseSignal(Agent aThis){
+        Case currentPosition = aThis.getPosition();
+        for (int x = currentPosition.getX() - dS; x <= currentPosition.getX() + dS; x++) {
+            for (int y = currentPosition.getY() - dS; y <= currentPosition.getY() + dS; y++) {
+                if(0 <= x && x < N
+                        && 0 <= y && y < M){
+                    grid[x][y].deprecateSignal(0.1);
+                }
+            }
+        }
+    }
+
+    private void clearSignal(Agent aThis){
+        Case currentPosition = aThis.getPosition();
+        for (int x = currentPosition.getX() - dS; x <= currentPosition.getX() + dS; x++) {
+            for (int y = currentPosition.getY() - dS; y <= currentPosition.getY() + dS; y++) {
+                if(0 <= x && x < N
+                        && 0 <= y && y < M){
+                    grid[x][y].setSignal(0);
+                }
+            }
+        }
+    }
+    // </editor-fold>
+
+    // <editor-fold defaultstate="collapsed" desc="Gestion de l'affichage"
     public static final String TEXT_RESET = "\u001B[0m";
     public static final String TEXT_BLACK = "\u001B[30m";
     public static final String TEXT_RED = "\u001B[31m";
     public static final String TEXT_GREEN = "\u001B[32m";
     public static final String TEXT_YELLOW = "\u001B[33m";
     public static final String TEXT_BLUE = "\u001B[34m";
-    public static final String TEXT_PURPLE = "\u001B[35m";
-    public static final String TEXT_CYAN = "\u001B[36m";
-    public static final String TEXT_WHITE = "\u001B[37m";
     private void printGrid(){
+
+        int cptA = 0;
+        int cptB = 0;
+        int cptC = 0;
         System.out.println("Grille :");
         for (int y = 0; y < M; y++) {
             System.out.print("|");
@@ -545,12 +598,15 @@ public class Grid {
                 }else{
                     switch(grid[x][y].getType()){
                         case A:
+                            cptA++;
                             System.out.print(TEXT_GREEN);
                             break;
                         case B:
+                            cptB++;
                             System.out.print(TEXT_BLUE);
                             break;
                         case C:
+                            cptC++;
                             System.out.print(TEXT_RED);
                             break;
                         case EMPTY:
@@ -565,6 +621,11 @@ public class Grid {
             System.out.print("\n");
         }
         System.out.println("");
+
+        System.out.println("A : " + cptA);
+        System.out.println("B : " + cptB);
+        System.out.println("C : " + cptC);
     }
+    // </editor-fold>
     
 }
