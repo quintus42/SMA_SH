@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package com.polytech.sma.sma.sh_tp2;
+package com.polytech.sma.TP2;
 
 /**
  *
@@ -11,8 +11,9 @@ package com.polytech.sma.sma.sh_tp2;
  */
 public enum TypeObjet {
     EMPTY('O'), 
-    A('A'), 
-    B('B');
+    A('A'),
+    B('B'),
+    C('C');
  
     private Character type;
  

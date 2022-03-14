@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package com.polytech.sma.sma.sh_tp2;
+package com.polytech.sma.TP2;
 
 /**
  *
@@ -13,11 +13,16 @@ public class Agent {
     
     private Grid env;
     private TypeObjet carriedObjet;
-    private Case position;
+    protected Case position;
     private Direction direction;
     
     private double fa;
     private double fb;
+    private double fc;
+
+    private boolean forcedToTake;
+
+    private ShortTermMemory<TypeObjet> memory;
 
     public Case getPosition() {
         return position;
@@ -39,11 +44,25 @@ public class Agent {
         return fb;
     }
 
+    public double getFc() {
+        return fc;
+    }
+
     public void setFb(double fb) {
         this.fb = fb;
     }
-    
-    private ShortTermMemory<TypeObjet> memory;
+
+    public void setFc(double fc) {
+        this.fc = fc;
+    }
+
+    public boolean isForcedToTake() {
+        return forcedToTake;
+    }
+
+    public void setForcedToTake(boolean forcedToTake) {
+        this.forcedToTake = forcedToTake;
+    }
 
     public Agent(Grid env, int tMemory) {
         this.env = env;
@@ -56,11 +75,22 @@ public class Agent {
         //(voisinage + case libre + direction)
         env.localePerception(this);
     }
-    
+
+    @Override
+    public String toString() {
+        return "Agent{" +
+                "position=" + position +
+                '}';
+    }
+
     public void action(){
         //Déplacement
         env.moveRobot(this, direction);
-        
+
+        if(this.position == null){
+            //ca ne devrait pas etre possible
+            return;
+        }
         //Essayer de prendre/déposer
         if(carriedObjet != TypeObjet.EMPTY){
             if(position.getType() == TypeObjet.EMPTY){
@@ -71,7 +101,8 @@ public class Agent {
         }else{
             if(position.getType() != TypeObjet.EMPTY){
                 //On essaye de prendre l'objet
-                env.tryTakeObject(this);
+                env.tryTakeObject(this, forcedToTake);
+                forcedToTake = false;
             }
             //Sinon on ne fait rien
         }

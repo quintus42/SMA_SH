@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package com.polytech.sma.sma.sh_tp2;
+package com.polytech.sma.TP2;
 
 import java.util.Collection;
 import java.util.LinkedList;

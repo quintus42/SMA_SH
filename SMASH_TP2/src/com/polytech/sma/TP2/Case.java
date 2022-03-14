@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package com.polytech.sma.sma.sh_tp2;
+package com.polytech.sma.TP2;
 
 /**
  *
@@ -12,6 +12,7 @@ package com.polytech.sma.sma.sh_tp2;
 public class Case {
     private TypeObjet type;
     private Agent robot;
+    private Agent robot2;
     private int x;
     private int y;
     private double signal;
@@ -45,12 +46,47 @@ public class Case {
         return robot;
     }
 
-    public void setRobot(Agent robot) {
-        this.robot = robot;
+    public Agent getRobot2() {
+        return robot2;
     }
+
+    public void removeRobot(Agent robot){
+        if(robot == this.robot){
+            this.robot = null;
+        }else if(robot == this.robot2){
+            this.robot2 = null;
+        }
+    }
+
+    public void setRobot(Agent robot) {
+        //Dans cette fonction on gère le premier robot
+        // mais aussi le robot2 pour les objets C
+        if(robot == null){
+            this.robot = null;
+            this.robot2 = null;
+        }else{
+            //On essaie de remplir robot ou robot2
+            if(this.robot == null){
+                this.robot = robot;
+            }else{
+                this.robot2 = robot;
+            }
+        }
+    }
+
+//    public void setRobot2(Agent robot2) {
+//        this.robot2 = robot2;
+//    }
 
     public int getX() {
         return x;
+    }
+
+    @Override
+    public String toString() {
+        return "{" + x +
+                ", " + y +
+                '}';
     }
 
     public void setX(int x) {
@@ -77,5 +113,13 @@ public class Case {
         signal = (1-r)*signal;
     }
 
-
+    public Agent getOtherRobot(Agent robot){
+        if (this.robot == robot){
+            return this.robot2;
+        }else if(this.robot2 == robot){
+            return this.robot;
+        }else{
+            return null;
+        }
+    }
 }

@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package com.polytech.sma.sma.sh_tp2;
+package com.polytech.sma.TP2;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,6 +22,7 @@ public class Grid {
     private int M;
     private int nbObjA;
     private int nbObjB;
+    private int nbObjC;
     private int nbAgents;
     private ArrayList<Agent> agents;
     private int agentMemorySize;
@@ -32,16 +33,17 @@ public class Grid {
     private double e;
 
     private int dS;
-    private double iS;
+    private double iS = 1;
     
     private Case[][] grid;
 
-    public Grid(int n, int m, int nbA, int nbB, int nbAgents, int memoSize,
+    public Grid(int n, int m, int nbA, int nbB, int nbC, int nbAgents, int memoSize,
             int I, double kPlus, double kMoins, double e, int dS) {
         this.N = n;
         this.M = m;
         this.nbObjA = nbA;
         this.nbObjB = nbB;
+        this.nbObjC = nbC;
         this.nbAgents = nbAgents;
         this.agentMemorySize = memoSize;
         this.I = I;
@@ -103,6 +105,18 @@ public class Grid {
                 nbBPlaced++;
             }
         }
+
+        //Initialisation des objets C;
+        int nbCPlaced = 0;
+        while(nbCPlaced < nbObjC){
+            Random rand = new Random();
+            int randN = rand.nextInt(N);
+            int randM = rand.nextInt(M);
+            if(grid[randN][randM].getType() == TypeObjet.EMPTY){
+                grid[randN][randM].setType(TypeObjet.C);
+                nbCPlaced++;
+            }
+        }
         
         printGrid();
         
@@ -113,9 +127,10 @@ public class Grid {
         int iter = 0;
         while(true){
             iter++;
+            updateCaseAgentFromGrid();//temporaire pour cause de bug ?
 
             //On choisit aléatoirement un robot
-            Agent r = nextRobot(true);
+            Agent r = nextRobot(false);
 
             //Perception du robot
             r.perception();
@@ -127,7 +142,7 @@ public class Grid {
                 System.out.println("Itération : " + iter);
                 printGrid();
                 try {
-                    Thread.sleep(500);
+                    Thread.sleep(400);
                 } catch (InterruptedException ex) {
                     Logger.getLogger(Grid.class.getName()).log(Level.SEVERE, null, ex);
                 }
@@ -137,16 +152,28 @@ public class Grid {
         }
     }
 
+    private void updateCaseAgentFromGrid(){
+        for (Agent agent:agents) {
+            if(!(agent.getPosition() == null)){
+                int x = agent.getPosition().getX();
+                int y = agent.getPosition().getY();
+                if(!(grid[x][y].getRobot() == agent || grid[x][y].getRobot2() == agent)){
+                    grid[x][y].setRobot(agent);
+                }
+            }
+        }
+    }
+
     private void spreadSignal(Agent aThis){
         Case currentPosition = aThis.getPosition();
-        for (int x = currentPosition.getX() - dS; x < currentPosition.getX() + dS; x++) {
-            for (int y = currentPosition.getY() - dS; y < currentPosition.getY() + dS; y++) {
+        for (int x = currentPosition.getX() - dS; x <= currentPosition.getX() + dS; x++) {
+            for (int y = currentPosition.getY() - dS; y <= currentPosition.getY() + dS; y++) {
                 if(0 <= x && x < N
                         && 0 <= y && y < M){
-                    int dist = Math.max(Math.abs(x), Math.abs(y));
+                    int dist = Math.max(Math.abs(x-currentPosition.getX()), Math.abs(y-currentPosition.getY()));
                     double rS = 1; //reduction du signal
                     for (int i = 1; i <= dist; i++) {
-                        rS += rS - iS/i;
+                        rS = rS - iS/i;
                     }
                     grid[x][y].setSignal(iS+rS);
                 }
@@ -156,8 +183,8 @@ public class Grid {
 
     private void clearSignal(Agent aThis){
         Case currentPosition = aThis.getPosition();
-        for (int x = currentPosition.getX() - dS; x < currentPosition.getX() + dS; x++) {
-            for (int y = currentPosition.getY() - dS; y < currentPosition.getY() + dS; y++) {
+        for (int x = currentPosition.getX() - dS; x <= currentPosition.getX() + dS; x++) {
+            for (int y = currentPosition.getY() - dS; y <= currentPosition.getY() + dS; y++) {
                 if(0 <= x && x < N
                         && 0 <= y && y < M){
                     grid[x][y].setSignal(0);
@@ -208,17 +235,43 @@ public class Grid {
                     nextX -= I;
                 }
             }
-            currentPosition.setRobot(null);
+            if(nextX < 0 || nextX >= N || nextY < 0 || nextY >= M){
+                System.out.println("Erreeeeeeeeeeeeeur");
+                return;
+            }
             Case newPos = grid[nextX][nextY];
+            if(aThis.getObjet() == TypeObjet.C){
+                Agent otherRobot = aThis.getPosition().getOtherRobot(aThis);
+                if(otherRobot != null){
+                    newPos.setRobot(otherRobot);
+                    currentPosition.removeRobot(otherRobot);
+                    otherRobot.setPosition(newPos);
+                }else{
+                    //Si l'agent porte un objet C mais qu'il n'y a pas d'autre robot (il est seul)
+                    //On ne bouge pas
+                    //On deprecate le signal ?
+                    //On relance le signal ?
+                    Random rand = new Random();
+                    if (rand.nextDouble() < 0.3){
+                        clearSignal(aThis);
+                        aThis.setObjet(TypeObjet.EMPTY);
+                        setRandomDirection(aThis);
+                        moveRobot(aThis, aThis.getDirection());
+                    }
+                    return;
+                }
+            }
             newPos.setRobot(aThis);
+            currentPosition.removeRobot(aThis);
             aThis.setPosition(newPos);
+            aThis.setDirection(null);
         }
     }
 
     void localePerception(Agent aThis) {
         for (int i = 0; i < N; i++) {
             for (int j = 0; j < M; j++) {
-                if(grid[i][j].getRobot() == aThis){
+                if(grid[i][j].getRobot() == aThis || grid[i][j].getRobot2() == aThis){
                     Case currentCase = grid[i][j];
 
                     //On ajoute la case courante à la mémoire du robot
@@ -227,12 +280,15 @@ public class Grid {
                     //On calcule les variables en fonction de son environnement
                     aThis.setFa(calculFrequency(aThis, TypeObjet.A));
                     aThis.setFb(calculFrequency(aThis, TypeObjet.B));
+                    aThis.setFc(calculFrequency(aThis, TypeObjet.C));
 
                     aThis.setPosition(currentCase);
 
-                    if(aThis.getPosition().getSignal() > 0){
+                    if(aThis.getPosition().getSignal() > 0 && aThis.getObjet() != TypeObjet.C){
+                        //System.out.println("Direction signal");
                         setDirectionSignal(aThis);
                     }else{
+                        //System.out.println("Direction random");
                         setRandomDirection(aThis);
                     }
 
@@ -254,8 +310,8 @@ public class Grid {
     private void setDirectionSignal(Agent aThis){
         Case currentPosition = aThis.getPosition();
         Case maxSignal = new Case();
-        for (int x = currentPosition.getX() - 1; x < currentPosition.getX() + 1; x++) {
-            for (int y = currentPosition.getY() - 1; y < currentPosition.getY() + 1; y++) {
+        for (int x = currentPosition.getX() - 1; x <= currentPosition.getX() + 1; x++) {
+            for (int y = currentPosition.getY() - 1; y <= currentPosition.getY() + 1; y++) {
                 if(0 <= x && x < N
                         && 0 <= y && y < M){
                     Case cS = grid[x][y];
@@ -269,7 +325,12 @@ public class Grid {
         Random rand = new Random();
         if(rand.nextDouble() <= maxSignal.getSignal()){
             //On suit la direction du signal
-            aThis.setDirection(getDirectionOfCase(aThis.getPosition(), maxSignal));
+            Direction dir = getDirectionOfCase(aThis.getPosition(), maxSignal);
+            if(dir==null){
+                //c'est la case en cours on force donc l'agent à prendre l'objet
+                aThis.setForcedToTake(true);
+            }
+            aThis.setDirection(dir);
         }else{
             //On tire une direction au hasard
             setRandomDirection(aThis);
@@ -303,7 +364,8 @@ public class Grid {
             }else if(tarY < curY){
                 return Direction.NORD;
             }else{
-                return null; //C'est la case current
+                //C'est la case courante
+                return null;
             }
         }
     }
@@ -328,33 +390,61 @@ public class Grid {
     private double probaTake(double f){
         return Math.pow((kPlus / (kPlus + f)), 2);
     }
-    void tryTakeObject(Agent aThis) {
+    void tryTakeObject(Agent aThis, boolean forcedToTake) {
+        Random rand = new Random();
         double proba = 0;
         if(aThis.getPosition().getType() == TypeObjet.A){
             proba = probaTake(aThis.getFa());
         }else if(aThis.getPosition().getType() == TypeObjet.B){
             proba = probaTake(aThis.getFb());
+        }else if(aThis.getPosition().getType() == TypeObjet.C){
+            proba = probaTake(aThis.getFc());
+            if(rand.nextDouble()<= proba || forcedToTake){
+                //on regarde si il y'a deja un autre robot
+                Agent otherRobot = aThis.getPosition().getOtherRobot(aThis);
+                if(otherRobot != null){
+                    aThis.setObjet(aThis.getPosition().getType());
+                    aThis.getPosition().setType(TypeObjet.EMPTY);
+                    //On coupe le signal du robot en attente
+                    clearSignal(otherRobot);
+                }else{
+                    aThis.setObjet(aThis.getPosition().getType());
+                    //On propage un signal de demande d'aide
+                    spreadSignal(aThis);
+                }
+            }
+            return;
         }
-        Random rand = new Random();
-        if(rand.nextDouble()<= proba){
+        if(rand.nextDouble()<= proba || forcedToTake){
             //On prend l'objet
             aThis.setObjet(aThis.getPosition().getType());
             aThis.getPosition().setType(TypeObjet.EMPTY);
         }
     }
 
-
     private double probaDrop(double f){
         return Math.pow((f / (kMoins + f)), 2);
     }
     void tryDropObject(Agent aThis) {
+        Random rand = new Random();
         double proba = 0;
         if(aThis.getObjet() == TypeObjet.A){
             proba = probaDrop(aThis.getFa());
         }else if(aThis.getObjet() == TypeObjet.B){
             proba = probaDrop(aThis.getFb());
+        }else if(aThis.getObjet() == TypeObjet.C){
+            proba = probaDrop(aThis.getFc());
+            if(rand.nextDouble()<= proba){
+                Agent otherRobot = aThis.getPosition().getOtherRobot(aThis);
+                if(otherRobot != null){
+                    //On pose l'objet pour les deux robots
+                    aThis.getPosition().setType(aThis.getObjet());
+                    aThis.setObjet(TypeObjet.EMPTY);
+                    otherRobot.setObjet(TypeObjet.EMPTY);
+                }
+            }
+            return;
         }
-        Random rand = new Random();
         if(rand.nextDouble()<= proba){
             //On pose l'objet
             aThis.getPosition().setType(aThis.getObjet());
@@ -375,44 +465,61 @@ public class Grid {
             int nextY = currentY;
             switch(direction){
                 case NORD:
-                    nextY -= I;
+                    if(isDirectionInBoundAndFree(currentX, currentY - I)){
+                        freeDirections.add(direction);
+                    }
                     break;
                 case NORD_EST:
-                    nextY -= I;
-                    nextX += I;
+                    if(isDirectionInBoundAndFree(currentX + I, currentY - I)){
+                        freeDirections.add(direction);
+                    }
                     break;
                 case EST:
-                    nextX += I;
+                    if(isDirectionInBoundAndFree(currentX + I, currentY)){
+                        freeDirections.add(direction);
+                    }
                     break;
                 case SUD_EST:
-                    nextY += I;
-                    nextX += I;
+                    if(isDirectionInBoundAndFree(currentX + I, currentY + I)){
+                        freeDirections.add(direction);
+                    }
                     break;
                 case SUD:
                     nextY += I;
+                    if(isDirectionInBoundAndFree(currentX, currentY + I)){
+                        freeDirections.add(direction);
+                    }
                     break;
                 case SUD_OUEST:
-                    nextY += I;
-                    nextX -= I;
+                    if(isDirectionInBoundAndFree(currentX - I, currentY + I)){
+                        freeDirections.add(direction);
+                    }
                     break;
                 case OUEST:
-                    nextX -= I;
+                    if(isDirectionInBoundAndFree(currentX - I, currentY)){
+                        freeDirections.add(direction);
+                    }
                     break;
                 case NORD_OUEST:
-                    nextY -= I;
-                    nextX -= I;
+                    if(isDirectionInBoundAndFree(currentX - I, currentY - I)){
+                        freeDirections.add(direction);
+                    }
                     break;
-            }
-            if(0 <= nextX && nextX < N
-                    && 0 <= nextY && nextY < M){
-                //Position existante dans la grid, on vérifie sa dispo
-                if(grid[nextX][nextY].getRobot()==null){
-                    //On ajoute la direction dans la liste
-                    freeDirections.add(direction);
-                }
             }
         }
         return freeDirections;
+    }
+
+    private boolean isDirectionInBoundAndFree(int x, int y){
+        if(0 <= x && x < N
+                && 0 <= y && y < M){
+            //Position existante dans la grid, on vérifie sa dispo
+            if(grid[x][y].getRobot()==null){
+                //On ajoute la direction dans la liste
+                return true;
+            }
+        }
+        return false;
     }
 
 
@@ -427,24 +534,30 @@ public class Grid {
     public static final String TEXT_WHITE = "\u001B[37m";
     private void printGrid(){
         System.out.println("Grille :");
-        for (int i = 0; i < N; i++) {
+        for (int y = 0; y < M; y++) {
             System.out.print("|");
-            for (int j = 0; j < M; j++) {
-                if(grid[i][j].getRobot() != null){
-                    System.out.print(TEXT_RED);
+                for (int x = 0; x < N; x++) {
+                if(grid[x][y].getRobot() != null || grid[x][y].getRobot2() != null){
+                    System.out.print(TEXT_BLACK);
                     System.out.print("R");
                     System.out.print(TEXT_RESET);
                     System.out.print("|"); 
                 }else{
-                    switch(grid[i][j].getType()){
+                    switch(grid[x][y].getType()){
                         case A:
                             System.out.print(TEXT_GREEN);
                             break;
                         case B:
                             System.out.print(TEXT_BLUE);
                             break;
+                        case C:
+                            System.out.print(TEXT_RED);
+                            break;
+                        case EMPTY:
+                            if(grid[x][y].getSignal() > 0)
+                                System.out.print(TEXT_YELLOW);
                     }
-                    System.out.print(grid[i][j].getType());
+                    System.out.print(grid[x][y].getType());
                     System.out.print(TEXT_RESET);
                     System.out.print("|");  
                 }
