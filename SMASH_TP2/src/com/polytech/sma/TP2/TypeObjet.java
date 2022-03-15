@@ -10,7 +10,7 @@ package com.polytech.sma.TP2;
  * @author Epulapp
  */
 public enum TypeObjet {
-    EMPTY('O'), 
+    EMPTY(' '),
     A('A'),
     B('B'),
     C('C');

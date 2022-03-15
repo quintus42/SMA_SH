@@ -158,7 +158,7 @@ public class Grid {
                         Logger.getLogger(Grid.class.getName()).log(Level.SEVERE, null, ex);
                     }
                 }else{
-                    System.out.println("Itération : " + iter);
+                    //System.out.println("Itération : " + iter);
                 }
 
             }else{
@@ -242,7 +242,7 @@ public class Grid {
                         //donc on utilise 0.5-log(x) pour que lors du premier tour la proba de relancer ne soit pas de 1
                         // et on utilise la fonction max pour que dès que 0.5-log(x) < 0 (à savoir entre x=3 et x=4)
                         // la proba de relancer l'appel soit de 0
-                        proba = Math.max(0.5*Math.log10(aThis.getCptWaitingOnC()), 0);
+                        proba = Math.max(0.5*Math.log10(aThis.getCptWaitingOnC()+aThis.getCptWaitingOnC()/20), 0);
                         if (rand.nextDouble() < proba){
                             spreadSignal(aThis);
                             aThis.resetCptWaitingOnC();
@@ -628,9 +628,9 @@ public class Grid {
         }
         System.out.println("");
 
-        System.out.println("A : " + cptA);
-        System.out.println("B : " + cptB);
-        System.out.println("C : " + cptC);
+        //System.out.println("A : " + cptA);
+        //System.out.println("B : " + cptB);
+        //System.out.println("C : " + cptC);
     }
     // </editor-fold>
     

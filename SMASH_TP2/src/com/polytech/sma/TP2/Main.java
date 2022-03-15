@@ -10,8 +10,8 @@ public class Main {
 
 		int N = 50;
 		int M = 50;
-		int nbObjA = 200;
-		int nbObjB = 200;
+		int nbObjA = 100;
+		int nbObjB = 100;
 		int nbObjC = 200;
 		int nbAgents = 50;
 		int agentMemorySize = 10;
@@ -19,7 +19,7 @@ public class Main {
 		double kPlus = 0.1;
 		double kMoins = 0.3;
 		double e = 0;
-		int distanceSignal = 2;
+		int distanceSignal = 3;
 		boolean printIterationGrid = false;
 
 		Grid g = new Grid(N, M, nbObjA, nbObjB, nbObjC, nbAgents,
