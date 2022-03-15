@@ -136,7 +136,7 @@ public class Grid {
     
     public void sortGrid(){
         int iter = 0;
-        while(true && iter<10000000){
+        while(true && iter<5000000){
             iter++;
 
             //On choisit aléatoirement un robot
@@ -226,7 +226,7 @@ public class Grid {
                     //On calcul la proba d'abandonner l'objet avec le Logn(x)
                     //car log(1) = 0 et log(10) = 1
                     //donc plus le nombre de tour tend vers 10 plus la proba d'abandonner est proche de 1
-                    double proba = Math.log(aThis.getCptWaitingOnC());
+                    double proba = Math.log10(aThis.getCptWaitingOnC());
                     Random rand = new Random();
                     if (rand.nextDouble() < proba){
                         clearSignal(aThis);
@@ -242,7 +242,7 @@ public class Grid {
                         //donc on utilise 0.5-log(x) pour que lors du premier tour la proba de relancer ne soit pas de 1
                         // et on utilise la fonction max pour que dès que 0.5-log(x) < 0 (à savoir entre x=3 et x=4)
                         // la proba de relancer l'appel soit de 0
-                        proba = Math.max(0.5*Math.log(aThis.getCptWaitingOnC()), 0);
+                        proba = Math.max(0.5*Math.log10(aThis.getCptWaitingOnC()), 0);
                         if (rand.nextDouble() < proba){
                             spreadSignal(aThis);
                             aThis.resetCptWaitingOnC();
