@@ -567,7 +567,13 @@ public class Grid {
             for (int y = currentPosition.getY() - dS; y <= currentPosition.getY() + dS; y++) {
                 if(0 <= x && x < N
                         && 0 <= y && y < M){
-                    grid[x][y].setSignal(0);
+                    int dist = Math.max(Math.abs(x-currentPosition.getX()), Math.abs(y-currentPosition.getY()));
+                    double rS = 1; //reduction du signal
+                    for (int i = 1; i <= dist; i++) {
+                        rS = rS - iS/i;
+                    }
+                    double ancienSignal = grid[x][y].getSignal();
+                    grid[x][y].setSignal(ancienSignal - (iS+rS));
                 }
             }
         }
